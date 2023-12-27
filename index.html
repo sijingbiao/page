@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>书籍</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/2.6.14/vue.min.js"></script>
+    <!-- element-ui 引入样式 -->
+    <link
+      href="https://sijingbiao.github.io/page/public/indexs.css"
+      rel="stylesheet"
+    />
+    <!-- element-ui 引入组件库 -->
+    <script src="https://sijingbiao.github.io/page/public/indexs.js"></script>
+    <!-- 页面样式 -->
+    <link
+      rel="stylesheet"
+      href="https://sijingbiao.github.io/page/public/index.css"
+    />
+    <!-- 封装的方法 -->
+    <script src="https://sijingbiao.github.io/page/public/index.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <el-form ref="form" :model="form" label-width="80px">
+        <el-form-item label="书籍名称">
+          <el-input v-model="form.name"></el-input>
+        </el-form-item>
+        <el-form-item label="书籍介绍">
+          <el-input v-model="form.desc"></el-input>
+        </el-form-item>
+        <div class="upload">
+          <el-upload
+            action="#"
+            list-type="picture-card"
+            :auto-upload="false"
+            :on-change="handleUpload"
+          >
+            <i slot="default" class="el-icon-plus"></i>
+            <div slot="file" slot-scope="{file}">
+              <img
+                class="el-upload-list__item-thumbnail"
+                :src="file.url"
+                alt=""
+              />
+              <span class="el-upload-list__item-actions">
+                <span
+                  class="el-upload-list__item-preview"
+                  @click="previewImg(file.url)"
+                >
+                  <i class="el-icon-zoom-in"></i>
+                </span>
+                <span
+                  v-if="!disabled"
+                  class="el-upload-list__item-delete"
+                  @click="handleDownload(file)"
+                >
+                  <i class="el-icon-download"></i>
+                </span>
+                <span
+                  v-if="!disabled"
+                  class="el-upload-list__item-delete"
+                  @click="handleRemove(file)"
+                >
+                  <i class="el-icon-delete"></i>
+                </span>
+              </span>
+            </div>
+          </el-upload>
+        </div>
+        <el-form-item>
+          <el-button type="primary" @click="onSubmit">新增</el-button>
+        </el-form-item>
+      </el-form>
+      <div v-if="booksList.length">
+        <ul>
+          <li v-for="(item,index) in booksList" :key="index">
+            <div style="display: flex; align-items: center; height: 40px">
+              <span>{{item.name}}</span>--<span>{{item.desc}}</span>
+              <div v-if="item.url.length" class="imgs">
+                <img
+                  :src="i.url"
+                  alt=""
+                  style="width: 40px; border-radius: 5px"
+                  v-for="i in item.url"
+                  @click="previewImg(i.url)"
+                />
+              </div>
+              <div class="btns">
+                <el-button size="mini" type="danger" @click="delData(item)"
+                  >删除</el-button
+                >
+                <el-button size="mini" type="danger" @click="updateData(item)"
+                  >修改</el-button
+                >
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <script>
+      var vm = new Vue({
+        //  el:指定元素id是app的元素
+        el: "#app",
+        //  data:里面存储的是数据,是个对象
+        data: {
+          form: {
+            name: "",
+            desc: "",
+            url: [],
+          },
+          fileList: [],
+          booksList: [],
+          disabled: false,
+        },
+        mounted() {
+          // 调用 JavaScript 文件中的方法
+          const req = window.indexedDB.open("books", 1.0); // 数据库名称，版本号
+          let that = this;
+          req.onsuccess = function (event) {
+            // 监听数据库创建成功事件
+            that.indexDB = event.target.result; // 数据库对象
+            that.getData();
+            console.log("数据库打开成功");
+          };
+          req.onerror = function (error) {
+            console.log("数据库打开报错");
+          };
+          req.onupgradeneeded = function (event) {
+            // 数据库创建或升级的时候会触发
+            console.log("数据库创建或升级");
+          };
+          req.onupgradeneeded = function (event) {
+            // 数据库创建或升级的时候会触发
+            let db = event.target.result;
+            let storeName = "product"; // 表名
+            if (!db.objectStoreNames.contains(storeName)) {
+              // keyPath是主键键值，也可以不传然后设定autoIncrement：true自动创建键值
+              db.createObjectStore(storeName, { keyPath: "key" });
+            }
+            //db.deleteObjectStore(storeName);删除数据仓库方法，参数为数据仓库名称
+          };
+          req.onupgradeneeded = function (event) {
+            // 数据库创建或升级的时候会触发
+            db = event.target.result;
+            let storeName = "product"; // 表名
+            if (!db.objectStoreNames.contains(storeName)) {
+              // 判断表是否存在
+              let objectStore = db.createObjectStore(storeName, {
+                keyPath: "key",
+                autoIncrement: true,
+              });
+              // 创建索引
+              // indexName索引列名称
+              // indexKey索引键值
+              objectStore.createIndex("indexName", "indexKey", {
+                unique: false,
+              }); // 创建索引 可以让你搜索任意字段
+              //objectStore.deleteIndex("indexName");删除索引
+            }
+          };
+          // setTimeout(()=>{
+          //   console.log(this.fileList);
+          // },20000)
+        },
+        methods: {
+          handleUpload(file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const base64String = event.target.result;
+              // 将图片数据保存到本地存储
+              this.fileList.push({
+                name: file.name,
+                url: base64String,
+              });
+            };
+            reader.readAsDataURL(file.raw);
+          },
+          // 新增
+          async onSubmit() {
+            this.form.url = this.fileList;
+            await addData(this.indexDB, "product", this.form);
+            await this.getData();
+          },
+          async getData() {
+            let res = await getData(this.indexDB, "product");
+            this.booksList = res.data;
+          },
+          async delData(item) {
+            let res = await deleteData(this.indexDB, "product", item.key);
+            await this.getData();
+          },
+          async updateData(item) {
+            this.form.key = item.key;
+            let res = await updateData(this.indexDB, "product", this.form);
+            await this.getData();
+          },
+          previewImg(src) {
+            let id = "page";
+            let $div = document.getElementById(id);
+            if (!$div) {
+              $div = document.createElement("div");
+              $div.setAttribute("id", "page");
+              let $mask = document.createElement("div");
+              $mask.style.position = "absolute";
+              $mask.style.width = "100%";
+              $mask.style.height = "100%";
+              $mask.style.background = "black";
+              $mask.style.opacity = "0.6";
+              $div.appendChild($mask);
+              $div.style.position = "fixed";
+              $div.style.width = "100%";
+              $div.style.height = "100%";
+              $div.style.top = 0;
+              $div.style["z-index"] = 9999999;
+              let $img = document.createElement("img");
+              $img.setAttribute("class", "page-img");
+              $img.style.position = "absolute";
+              $img.style.top = "50%";
+              $img.style.left = "50%";
+              $img.style["max-width"] = "90%";
+              $img.style["max-height"] = "90%";
+              $img.style.transform = "translate(-50%,-50%)";
+              $img.setAttribute("src", src);
+              $div.appendChild($img);
+              $div.addEventListener("click", function () {
+                this.style.display = "none";
+              });
+              document.body.appendChild($div);
+              return;
+            }
+            let $img1 = document.body
+              .appendChild($div)
+              .querySelector(".page-img");
+            $img1.setAttribute("src", src);
+            $div.style.display = "block";
+          },
+          base64ToUrl(base) {
+            const byteCharacters = atob(base);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "image/jpeg" });
+            //blob-->url
+            let binaryData = [];
+            binaryData.push(blob);
+            let url = URL.createObjectURL(new Blob(binaryData));
+            return url;
+          },
+          handleDownload(file) {
+            console.log(file);
+            this.$message.error("下载");
+          },
+          handleRemove(file) {
+            console.log(file);
+            this.$message.error("删除");
+          },
+        },
+      });
+    </script>
+  </body>
+</html>
